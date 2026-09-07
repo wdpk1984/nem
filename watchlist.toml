@@ -1,0 +1,75 @@
+# Watchtower watchlist.
+#
+# Add, remove or edit holdings freely. The symbol must be a valid Yahoo Finance
+# ticker. A few useful patterns:
+#   GC=F      commodity future (gold)
+#   GLD       exchange traded fund
+#   AAPL      individual share
+#   ^GSPC     market index
+#   BTC-USD   crypto
+#   EURUSD=X  currency pair
+
+[settings]
+lookback_days = 400        # how much history to pull, 400 covers a full year of trading
+cooldown_days = 3          # do not repeat the same alert for the same asset within this many days
+news = true                # pull headlines for anything that gets flagged
+news_count = 2
+database = "data/watchtower.db"
+
+[thresholds]
+move_pct = 2.0             # flag a one day move bigger than this
+move_zscore = 2.5          # or a move this many times bigger than the asset's normal swing
+volume_ratio = 2.0         # flag volume this many times the 20 day average
+rsi_high = 70.0            # momentum stretched
+rsi_low = 30.0             # momentum washed out
+range_edge_pct = 2.0       # flag when within this distance of the 52 week high or low
+drawdown_pct = 10.0        # flag a fall this big from the recent peak
+drawdown_window = 60       # sessions used to find that peak
+
+# ---------------------------------------------------------------------------
+# Holdings. Set alert_above or alert_below on any of them to get told the
+# moment your own price level is crossed.
+#
+# A note on commodities. A futures ticker such as GC=F is the price everyone
+# quotes, but its history is stitched together from contracts that expire and
+# roll over, so its volume column is not comparable day to day. Watchtower
+# detects this and switches volume rules off for futures automatically. The
+# fund versions below (GLD, SLV, CPER, BNO) track the same commodities with a
+# clean continuous history, so they keep full volume monitoring. Holding both
+# gives you the headline price and the trading flow behind it.
+#
+# Leave news_query blank to search on the ticker itself, which gives far better
+# headlines than a plain phrase like "gold price".
+# ---------------------------------------------------------------------------
+
+[[holdings]]
+symbol = "GC=F"
+label = "Gold (spot price)"
+kind = "commodity"
+# alert_above = 5000.0
+# alert_below = 4000.0
+
+[[holdings]]
+symbol = "GLD"
+label = "Gold (SPDR fund)"
+kind = "commodity fund"
+
+[[holdings]]
+symbol = "SLV"
+label = "Silver (iShares fund)"
+kind = "commodity fund"
+
+[[holdings]]
+symbol = "CPER"
+label = "Copper (US fund)"
+kind = "commodity fund"
+
+[[holdings]]
+symbol = "BNO"
+label = "Brent Crude Oil (fund)"
+kind = "commodity fund"
+
+[[holdings]]
+symbol = "^GSPC"
+label = "S&P 500"
+kind = "index"
