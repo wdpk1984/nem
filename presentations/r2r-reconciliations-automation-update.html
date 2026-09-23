@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>R2R Reconciliations Automation — Executive Update</title>
+<style>
+:root, :root[data-theme="dark"]{
+  --iff:#0075CF; --sky:#4FA8E8; --acc:#8A6BFF;
+  --bg:#02040a; --fg:#fff; --dim:rgba(255,255,255,.64); --faint:rgba(255,255,255,.34);
+  --edge:rgba(255,255,255,.14);
+  --glass:linear-gradient(150deg,rgba(255,255,255,.115),rgba(255,255,255,.03) 46%,rgba(0,117,207,.10));
+  --shadow:0 26px 70px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.28);
+  --motion-op:1; --motion-op2:.55;
+}
+:root[data-theme="light"]{
+  --bg:#f6f9fc; --fg:#0a1420; --dim:rgba(10,20,32,.66); --faint:rgba(10,20,32,.4);
+  --edge:rgba(10,20,32,.1);
+  --glass:linear-gradient(150deg,rgba(255,255,255,.95),rgba(246,249,252,.8) 46%,rgba(0,117,207,.06));
+  --shadow:0 18px 44px rgba(10,30,60,.1),inset 0 1px 0 rgba(255,255,255,.9);
+  --motion-op:.35; --motion-op2:.2;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html,body{
+  width:100%; height:100%; overflow:hidden; background:var(--bg); color:var(--fg);
+  font-family:"SF Pro Display",-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;
+  transition:background .4s ease, color .4s ease;
+}
+#stage{position:fixed; inset:0; overflow:hidden; cursor:pointer;}
+#canvas{position:absolute; left:0; top:0; width:0; height:0; transform-origin:0 0; will-change:transform;}
+
+.frame{
+  position:absolute; left:0; top:0;
+  border-radius:28px;
+  background:var(--bg);
+  opacity:0;
+  overflow:hidden;
+}
+body.is-flying .frame{opacity:.30; transition:opacity .35s linear;}
+.frame.is-live{opacity:1 !important; transition:opacity .35s linear;}
+
+.panel{
+  position:absolute; inset:0; padding:96px 108px;
+  display:flex; flex-direction:column; justify-content:center;
+}
+.frame::before{
+  content:""; position:absolute; inset:0;
+  background:
+    radial-gradient(1200px 700px at 12% -10%, rgba(0,117,207,.20), transparent 60%),
+    radial-gradient(900px 600px at 105% 110%, rgba(138,107,255,.14), transparent 60%);
+  pointer-events:none;
+}
+.bgmotion{position:absolute; inset:0; pointer-events:none; opacity:var(--motion-op); overflow:hidden;}
+
+.eyebrow{
+  font-size:22px; text-transform:uppercase; letter-spacing:6px; font-weight:650;
+  color:var(--acc); margin-bottom:22px; position:relative; z-index:2;
+}
+h1{font-size:158px; font-weight:700; letter-spacing:-.05em; line-height:.98; position:relative; z-index:2;}
+h2{font-size:86px; font-weight:680; letter-spacing:-.03em; line-height:1.02; position:relative; z-index:2; max-width:1250px;}
+p.lede{font-size:31px; line-height:1.35; color:var(--dim); max-width:980px; position:relative; z-index:2; margin-top:26px; font-weight:500;}
+.body-txt{font-size:23px; line-height:1.4; color:var(--dim); font-weight:500;}
+
+.source{
+  position:absolute; left:108px; bottom:44px; font-size:16px; color:var(--faint);
+  letter-spacing:.02em; z-index:3; max-width:1100px;
+}
+.pageno{
+  position:absolute; right:108px; bottom:44px; font-size:16px; color:var(--faint);
+  letter-spacing:.1em; z-index:3;
+}
+
+.stat{position:relative; z-index:2;}
+.stat .num{
+  font-size:118px; font-weight:750; letter-spacing:-.04em; line-height:1;
+  background:linear-gradient(135deg,var(--iff),var(--acc));
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+}
+.stat .label{font-size:19px; color:var(--dim); font-weight:600; margin-top:10px; max-width:320px; line-height:1.3;}
+
+.card{
+  border-radius:22px; border:1px solid var(--edge);
+  background:var(--glass); box-shadow:var(--shadow);
+  backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
+}
+
+[data-step]{opacity:0; transform:translateY(14px); transition:opacity .45s ease, transform .45s ease;}
+[data-step].on{opacity:1; transform:translateY(0);}
+
+/* ---------- cover ---------- */
+#frame-0 .panel{align-items:flex-start; justify-content:center; gap:0;}
+#frame-0 .credit{position:absolute; left:108px; bottom:52px; z-index:2;}
+#frame-0 .credit .name{font-size:22px; font-weight:650; color:var(--fg);}
+#frame-0 .credit .role{font-size:17px; color:var(--faint); margin-top:4px;}
+#frame-0 .hint{
+  position:absolute; right:108px; bottom:52px; z-index:2; font-size:16px; color:var(--faint);
+  letter-spacing:.08em; text-transform:uppercase;
+  animation:hintfade 6s ease forwards; animation-delay:2.4s;
+}
+@keyframes hintfade{to{opacity:0}}
+#frame-0 h1{margin-top:8px;}
+#frame-0 h1 .accent-line{
+  display:block; font-size:.56em; font-weight:680; letter-spacing:-.02em;
+  background:linear-gradient(120deg,var(--iff),var(--acc));
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+  margin-top:14px;
+}
+.bg-beams{background:var(--bg);}
+.bg-beams::before, .bg-beams::after{
+  content:""; position:absolute; width:2600px; height:2600px; left:50%; top:50%;
+  background:conic-gradient(from 0deg, transparent 0deg, rgba(0,117,207,.34) 6deg, transparent 22deg, transparent 160deg, rgba(138,107,255,.28) 168deg, transparent 190deg, transparent 340deg, rgba(0,117,207,.22) 348deg, transparent 360deg);
+  transform:translate(-50%,-50%);
+  animation:spin 46s linear infinite;
+  filter:blur(2px);
+}
+.bg-beams::after{animation-duration:70s; animation-direction:reverse; opacity:.6;}
+@keyframes spin{to{transform:translate(-50%,-50%) rotate(360deg);}}
+
+/* ---------- dots (exec summary) ---------- */
+.bg-dots{background-image:radial-gradient(rgba(0,117,207,.5) 2.4px, transparent 2.4px);
+  background-size:46px 46px; animation:drift 18s linear infinite;}
+@keyframes drift{from{background-position:0 0;} to{background-position:-460px -230px;}}
+
+/* ---------- lines (strategic objectives) ---------- */
+.bg-lines{
+  background-image:repeating-linear-gradient(115deg, rgba(0,117,207,.16) 0 2px, transparent 2px 64px);
+  animation:slide 14s linear infinite;
+}
+@keyframes slide{from{background-position:0 0;} to{background-position:640px 0;}}
+
+/* ---------- columns (how it works) ---------- */
+.bg-columns{
+  background-image:repeating-linear-gradient(90deg, rgba(0,117,207,.12) 0 3px, transparent 3px 200px);
+  opacity:var(--motion-op2);
+}
+.bg-columns::before{
+  content:""; position:absolute; inset:0;
+  background:repeating-linear-gradient(90deg, transparent 0 197px, rgba(138,107,255,.10) 197px 200px);
+  animation:colpulse 5s ease-in-out infinite;
+}
+@keyframes colpulse{0%,100%{opacity:.4;} 50%{opacity:1;}}
+
+/* ---------- grid (GR/IR scale) ---------- */
+.bg-grid{
+  background-image:
+    repeating-linear-gradient(0deg, rgba(0,117,207,.16) 0 1px, transparent 1px 58px),
+    repeating-linear-gradient(90deg, rgba(0,117,207,.16) 0 1px, transparent 1px 58px);
+  -webkit-mask-image:radial-gradient(1100px 750px at 70% 40%, #000 40%, transparent 78%);
+  mask-image:radial-gradient(1100px 750px at 70% 40%, #000 40%, transparent 78%);
+  animation:gridmove 22s linear infinite;
+}
+@keyframes gridmove{from{background-position:0 0,0 0;} to{background-position:0 -580px, -580px 0;}}
+
+/* ---------- orbits (GR/IR value) ---------- */
+.bg-orbits{}
+.bg-orbits i{
+  position:absolute; border:1px solid rgba(138,107,255,.30); border-radius:50%;
+  left:50%; top:50%; transform:translate(-50%,-50%);
+}
+.bg-orbits i:nth-child(1){width:760px; height:760px; animation:orb 34s linear infinite;}
+.bg-orbits i:nth-child(2){width:1160px; height:1160px; border-color:rgba(0,117,207,.24); animation:orb 52s linear infinite reverse;}
+.bg-orbits i:nth-child(3){width:460px; height:460px; border-color:rgba(0,117,207,.34); animation:orb 22s linear infinite;}
+@keyframes orb{from{transform:translate(-50%,-50%) rotate(0deg);} to{transform:translate(-50%,-50%) rotate(360deg);}}
+.bg-orbits i::after{
+  content:""; position:absolute; width:10px; height:10px; border-radius:50%;
+  background:var(--acc); top:-5px; left:50%; margin-left:-5px; box-shadow:0 0 18px var(--acc);
+}
+
+/* ---------- waves (business value) ---------- */
+.bg-waves span{
+  position:absolute; left:-10%; width:120%; height:340px; border-radius:50%;
+  background:linear-gradient(180deg, rgba(0,117,207,.20), transparent 70%);
+  filter:blur(6px);
+}
+.bg-waves span:nth-child(1){top:8%; animation:wv 9s ease-in-out infinite;}
+.bg-waves span:nth-child(2){top:42%; background:linear-gradient(180deg, rgba(138,107,255,.16), transparent 70%); animation:wv 11s ease-in-out infinite reverse;}
+.bg-waves span:nth-child(3){top:70%; animation:wv 13s ease-in-out infinite;}
+@keyframes wv{0%,100%{transform:translateX(-3%);} 50%{transform:translateX(3%);}}
+
+/* ---------- scan lines (compliance) ---------- */
+.bg-scan{
+  background-image:repeating-linear-gradient(0deg, rgba(0,117,207,.10) 0 1px, transparent 1px 10px);
+}
+.bg-scan::before{
+  content:""; position:absolute; left:0; right:0; height:220px;
+  background:linear-gradient(180deg, transparent, rgba(138,107,255,.20), transparent);
+  animation:scan 6s ease-in-out infinite;
+}
+@keyframes scan{0%{top:-220px;} 100%{top:900px;}}
+
+/* ---------- shafts (roadmap) ---------- */
+.bg-shafts i{
+  position:absolute; width:3px; height:1700px; left:-10%;
+  background:linear-gradient(180deg, transparent, rgba(0,117,207,.32), transparent);
+  transform:rotate(28deg);
+}
+.bg-shafts i:nth-child(1){left:5%; animation:shaft 7s linear infinite;}
+.bg-shafts i:nth-child(2){left:32%; background:linear-gradient(180deg, transparent, rgba(138,107,255,.28), transparent); animation:shaft 9s linear infinite; animation-delay:1.5s;}
+.bg-shafts i:nth-child(3){left:60%; animation:shaft 8s linear infinite; animation-delay:3s;}
+.bg-shafts i:nth-child(4){left:85%; animation:shaft 10s linear infinite; animation-delay:.7s;}
+@keyframes shaft{0%{opacity:0; transform:translateX(-60px) rotate(28deg);} 15%{opacity:1;} 85%{opacity:1;} 100%{opacity:0; transform:translateX(60px) rotate(28deg);}}
+
+/* ================= chrome ================= */
+.chrome{position:fixed; z-index:50;}
+#brand{top:40px; left:48px; display:flex; align-items:center; gap:12px; pointer-events:none;}
+#brand .mark{font-size:20px; font-weight:750; letter-spacing:.04em; color:var(--fg);}
+#brand .tag{font-size:13px; color:var(--faint); letter-spacing:.14em; text-transform:uppercase; border-left:1px solid var(--edge); padding-left:12px;}
+#themeToggle{
+  top:36px; right:48px; display:flex; align-items:center; gap:9px;
+  padding:10px 16px; border-radius:999px; border:1px solid var(--edge); background:var(--glass);
+  box-shadow:var(--shadow); color:var(--fg); font-size:14px; font-weight:600; cursor:pointer;
+  backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+}
+#themeToggle .dot{width:8px; height:8px; border-radius:50%; background:var(--acc);}
+
+/* ---------- map ---------- */
+#map{
+  position:fixed; inset:0; z-index:80; opacity:0; pointer-events:none;
+  background:radial-gradient(1400px 900px at 50% 50%, rgba(0,117,207,.10), var(--bg) 72%);
+  transition:opacity .4s ease;
+}
+#map.open{opacity:1; pointer-events:auto;}
+#map svg{position:absolute; inset:0; width:100%; height:100%;}
+#map svg line{stroke:var(--edge); stroke-width:1;}
+#mapHero{
+  position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); text-align:center; z-index:2;
+}
+#mapHero h3{font-size:54px; font-weight:700; letter-spacing:-.03em;}
+#mapHero p{font-size:16px; color:var(--faint); letter-spacing:.14em; text-transform:uppercase; margin-top:12px;}
+.tile{
+  position:absolute; transform:translate(-50%,-50%); z-index:3; cursor:pointer;
+  padding:22px 26px; border-radius:18px; text-align:left; min-width:210px;
+  animation:floaty 7s ease-in-out infinite;
+}
+.tile .n{font-size:14px; color:var(--acc); font-weight:700; letter-spacing:.1em;}
+.tile .t{font-size:22px; font-weight:680; margin-top:6px; line-height:1.15;}
+.tile:hover{border-color:var(--acc);}
+@keyframes floaty{0%,100%{margin-top:0;} 50%{margin-top:-14px;}}
+
+/* ---------- blank ---------- */
+#blank{
+  position:fixed; inset:0; z-index:90; background:var(--bg); opacity:0; pointer-events:none;
+  transition:opacity .5s ease; overflow:hidden;
+}
+#blank.open{opacity:1; pointer-events:auto;}
+#blank .grid{
+  position:absolute; left:0; right:0; bottom:0; height:70%;
+  background-image:repeating-linear-gradient(90deg, rgba(0,117,207,.22) 0 1px, transparent 1px 80px);
+  transform:perspective(600px) rotateX(60deg); transform-origin:bottom;
+  animation:gscroll 6s linear infinite;
+}
+@keyframes gscroll{from{background-position:0 0;} to{background-position:0 80px;}}
+#blank .mark{position:absolute; left:50%; top:38%; transform:translate(-50%,-50%); font-size:22px; letter-spacing:.1em; color:var(--faint);}
+
+@media (max-width:900px){
+  h1{font-size:110px;} h2{font-size:60px;} .stat .num{font-size:84px;}
+}
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <div id="canvas">
+
+    <div class="frame" id="frame-0" data-x="0" data-y="0" data-w="1600" data-r="0">
+      <div class="bgmotion bg-beams"></div>
+      <div class="panel">
+        <div class="eyebrow">Executive Update · September 2026</div>
+        <h1>R2R Balance Sheet<span class="accent-line">Reconciliations Automation</span></h1>
+        <p class="lede">Value delivered, progress to date and the road ahead — with a closer look at GR/IR, the next wave live.</p>
+      </div>
+      <div class="credit">
+        <div class="name">R2R Automation &amp; Robotics</div>
+        <div class="role">GBS Automation &amp; Robotics · 23 September 2026</div>
+      </div>
+      <div class="hint">Press → or click to begin · O for map</div>
+    </div>
+
+    <div class="frame" id="frame-1" data-x="-434" data-y="-2462" data-w="1600" data-r="-2" data-steps="4">
+      <div class="bgmotion bg-dots"></div>
+      <div class="panel" style="flex-direction:row; align-items:center; gap:80px;">
+        <div style="flex:0 0 620px;">
+          <div class="eyebrow">Executive Summary</div>
+          <h2>AP &amp; AR live, GR/IR next</h2>
+          <div style="display:flex; gap:56px; margin-top:52px;">
+            <div class="stat"><div class="num">280</div><div class="label">hrs / month — Wave 1 time-saving target</div></div>
+            <div class="stat"><div class="num">2</div><div class="label">FTE cost-avoidance equivalent — Wave 1 target</div></div>
+          </div>
+        </div>
+        <div style="flex:1; position:relative; padding-left:64px; border-left:1px solid var(--edge);">
+          <div data-step="1" style="margin-bottom:38px;"><span class="eyebrow" style="margin:0;">01</span><div class="body-txt" style="margin-top:8px; font-size:24px; color:var(--fg);">AP &amp; AR Trade bot deployed on UiPath — reconciliation templates now built automatically each close</div></div>
+          <div data-step="2" style="margin-bottom:38px;"><span class="eyebrow" style="margin:0;">02</span><div class="body-txt" style="margin-top:8px; font-size:24px; color:var(--fg);">Controls strengthened: standard rules, locked evidence sheets and a consistent audit trail</div></div>
+          <div data-step="3" style="margin-bottom:38px;"><span class="eyebrow" style="margin:0;">03</span><div class="body-txt" style="margin-top:8px; font-size:24px; color:var(--fg);">GR/IR reconciliations are the next delivery, building on the AP &amp; AR solution</div></div>
+          <div data-step="4"><span class="eyebrow" style="margin:0;">04</span><div class="body-txt" style="margin-top:8px; font-size:24px; color:var(--fg);">Next: stabilise hypercare, deliver GR/IR, then scope Wave 2</div></div>
+        </div>
+      </div>
+      <div class="source">Sources: Robotics Project Charter – RTR Reconciliations; AP &amp; AR bot deployment announcement (15 Sep 2026); GR/IR project emails</div>
+      <div class="pageno">Section 01</div>
+    </div>
+
+    <div class="frame" id="frame-2" data-x="1434" data-y="-2048" data-w="1600" data-r="3" data-steps="3">
+      <div class="bgmotion bg-lines"></div>
+      <div class="panel">
+        <div class="eyebrow">Strategic Objectives</div>
+        <h2>From manual risk to standard control</h2>
+        <div style="margin-top:56px; display:flex; flex-direction:column; gap:26px;">
+          <div style="display:grid; grid-template-columns:1fr 60px 1fr; align-items:center; padding-bottom:14px; border-bottom:1px solid var(--edge);">
+            <div style="font-size:15px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint);">Today's risk</div>
+            <div></div>
+            <div style="font-size:15px; letter-spacing:.12em; text-transform:uppercase; color:var(--acc);">Program objective</div>
+          </div>
+          <div data-step="1" style="display:grid; grid-template-columns:1fr 60px 1fr; align-items:center;">
+            <div class="body-txt" style="font-size:24px;">Manual, fragmented preparation<br><span style="font-size:18px; color:var(--faint);">Data pulled by hand from BlackLine and SAP</span></div>
+            <div style="text-align:center; color:var(--acc); font-size:26px;">→</div>
+            <div class="body-txt" style="font-size:24px; color:var(--fg);">Automated, rules-based preparation<br><span style="font-size:18px; color:var(--faint);">Bot extracts BlackLine and SAP data and builds each template</span></div>
+          </div>
+          <div data-step="2" style="display:grid; grid-template-columns:1fr 60px 1fr; align-items:center;">
+            <div class="body-txt" style="font-size:24px;">No common standard<br><span style="font-size:18px; color:var(--faint);">Varying formats limit consistency and audit reliance</span></div>
+            <div style="text-align:center; color:var(--acc); font-size:26px;">→</div>
+            <div class="body-txt" style="font-size:24px; color:var(--fg);">One standard template per account type<br><span style="font-size:18px; color:var(--faint);">Predefined business rules applied the same way every month</span></div>
+          </div>
+          <div data-step="3" style="display:grid; grid-template-columns:1fr 60px 1fr; align-items:center;">
+            <div class="body-txt" style="font-size:24px;">Effort on low-risk work<br><span style="font-size:18px; color:var(--faint);">Preparer time absorbed before analysis even begins</span></div>
+            <div style="text-align:center; color:var(--acc); font-size:26px;">→</div>
+            <div class="body-txt" style="font-size:24px; color:var(--fg);">Focus on true exceptions<br><span style="font-size:18px; color:var(--faint);">Preparers start directly at analysis and investigation</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="source">Source: Robotics Project Charter – RTR Reconciliations (Business Problem); PDD-R2R Reconciliation-AP v1.1 (Objectives)</div>
+      <div class="pageno">Section 02</div>
+    </div>
+
+    <div class="frame" id="frame-3" data-x="2490" data-y="-218" data-w="1600" data-r="-3" data-steps="4">
+      <div class="bgmotion bg-columns"></div>
+      <div class="panel">
+        <div class="eyebrow">Operational Improvement</div>
+        <h2>One bot, four steps, every close</h2>
+        <div style="display:flex; gap:28px; margin-top:60px; align-items:flex-end;">
+          <div data-step="1" class="card" style="flex:1; padding:34px 28px; height:210px;"><div class="eyebrow" style="margin-bottom:14px;">01</div><div style="font-size:24px; font-weight:650;">Trigger &amp; extract</div><div class="body-txt" style="margin-top:10px; font-size:18px;">BlackLine readiness email starts the run; monthly reports are downloaded</div></div>
+          <div data-step="2" class="card" style="flex:1; padding:34px 28px; height:250px;"><div class="eyebrow" style="margin-bottom:14px;">02</div><div style="font-size:24px; font-weight:650;">Scope &amp; filter</div><div class="body-txt" style="margin-top:10px; font-size:18px;">Agreed account scope and filtering logic applied automatically</div></div>
+          <div data-step="3" class="card" style="flex:1; padding:34px 28px; height:290px;"><div class="eyebrow" style="margin-bottom:14px;">03</div><div style="font-size:24px; font-weight:650;">Build templates</div><div class="body-txt" style="margin-top:10px; font-size:18px;">Standard template per account, filled with SAP data and screenshots</div></div>
+          <div data-step="4" class="card" style="flex:1; padding:34px 28px; height:330px; border-color:var(--acc);"><div class="eyebrow" style="margin-bottom:14px;">04</div><div style="font-size:24px; font-weight:650;">Publish &amp; notify</div><div class="body-txt" style="margin-top:10px; font-size:18px;">Outputs saved to the global SharePoint site; preparers notified</div></div>
+        </div>
+        <div class="card" style="margin-top:34px; padding:22px 30px; font-size:19px; color:var(--dim);">
+          <strong style="color:var(--fg);">Human judgement stays where it matters —</strong> preparers analyse differences and upload to BlackLine; approvers review and certify, kept outside bot scope by design.
+        </div>
+      </div>
+      <div class="source">Sources: AP &amp; AR bot deployment announcement (15 Sep 2026); Robotics Project Charter – RTR Reconciliations (Scope)</div>
+      <div class="pageno">Section 03</div>
+    </div>
+
+    <div class="frame" id="frame-4" data-x="1768" data-y="1768" data-w="1600" data-r="2">
+      <div class="bgmotion bg-grid"></div>
+      <div class="panel" style="flex-direction:row; align-items:center; gap:70px;">
+        <div style="flex:0 0 480px;">
+          <div class="eyebrow" style="color:var(--acc);">GR/IR Spotlight</div>
+          <h2 style="font-size:70px;">The biggest reconciliation, now in scope</h2>
+          <p class="body-txt" style="margin-top:24px; font-size:21px;">The bot produces the GR/IR consolidated report across three SAP systems, then builds a master template per legal entity for the team to add GL line items — ready by working day 8.</p>
+        </div>
+        <div style="flex:1;">
+          <div class="stat" style="margin-bottom:36px;"><div class="num" style="font-size:150px;">~140</div><div class="label" style="font-size:20px;">GR/IR reconciliations per month — SAP PR1 · LP1 · PP1</div></div>
+          <div style="display:flex; flex-direction:column; gap:16px;">
+            <div>
+              <div style="display:flex; justify-content:space-between; font-size:16px; color:var(--faint); margin-bottom:6px;"><span>GR/IR — ~140 / month</span></div>
+              <div style="height:14px; border-radius:8px; background:var(--edge); overflow:hidden;"><div style="height:100%; width:100%; background:linear-gradient(90deg,var(--iff),var(--acc));"></div></div>
+            </div>
+            <div>
+              <div style="display:flex; justify-content:space-between; font-size:16px; color:var(--faint); margin-bottom:6px;"><span>AR Trade — 133 / year</span></div>
+              <div style="height:14px; border-radius:8px; background:var(--edge); overflow:hidden;"><div style="height:100%; width:8%; background:var(--iff); opacity:.7;"></div></div>
+            </div>
+            <div>
+              <div style="display:flex; justify-content:space-between; font-size:16px; color:var(--faint); margin-bottom:6px;"><span>AP Trade — 112 / year</span></div>
+              <div style="height:14px; border-radius:8px; background:var(--edge); overflow:hidden;"><div style="height:100%; width:7%; background:var(--iff); opacity:.7;"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="source">Sources: R2R Reconciliation AP &amp; AR – User Guide; PDD-R2R Reconciliation-GRIR v1.1 (Process schedule); UiPath handover notes</div>
+      <div class="pageno">Section 04 · GR/IR</div>
+    </div>
+
+    <div class="frame" id="frame-5" data-x="3960" data-y="3111" data-w="1600" data-r="-2">
+      <div class="bgmotion bg-orbits"><i></i><i></i><i></i></div>
+      <div class="panel" style="align-items:center; text-align:center;">
+        <div class="eyebrow" style="color:var(--acc);">GR/IR Spotlight</div>
+        <h2>1.5 FTE saved once GR/IR is live</h2>
+        <div class="stat" style="margin-top:20px;"><div class="num" style="font-size:170px;">1.5</div><div class="label" style="font-size:20px; margin:0 auto;">FTE — 141 GR/IR reconciliations per year, the largest share of the 280 hrs/month target</div></div>
+        <div style="display:flex; gap:22px; margin-top:44px;">
+          <div class="card" style="padding:16px 24px;"><div style="font-size:16px; color:var(--faint);">AR Trade</div><div style="font-size:26px; font-weight:700;">0.2 FTE</div></div>
+          <div class="card" style="padding:16px 24px;"><div style="font-size:16px; color:var(--faint);">AP Trade</div><div style="font-size:26px; font-weight:700;">0.2 FTE</div></div>
+          <div class="card" style="padding:16px 24px; border-color:var(--acc);"><div style="font-size:16px; color:var(--acc);">GR/IR</div><div style="font-size:26px; font-weight:700;">1.5 FTE</div></div>
+        </div>
+        <div style="display:flex; gap:0; align-items:center; margin-top:56px;">
+          <div style="text-align:center; width:200px;"><div style="width:16px; height:16px; border-radius:50%; background:var(--iff); margin:0 auto 10px;"></div><div style="font-size:18px; font-weight:650;">UAT</div></div>
+          <div style="width:120px; height:2px; background:var(--edge);"></div>
+          <div style="text-align:center; width:200px;"><div style="width:16px; height:16px; border-radius:50%; background:var(--iff); margin:0 auto 10px;"></div><div style="font-size:18px; font-weight:650;">Go-live</div></div>
+          <div style="width:120px; height:2px; background:var(--edge);"></div>
+          <div style="text-align:center; width:200px;"><div style="width:18px; height:18px; border-radius:50%; background:var(--acc); margin:0 auto 10px; box-shadow:0 0 16px var(--acc);"></div><div style="font-size:18px; font-weight:650; color:var(--acc);">Hypercare · Q4 2026</div></div>
+        </div>
+      </div>
+      <div class="source">Sources: Robotics Project Charter (Goals &amp; Benefits); PDD-R2R Reconciliation-AP v1.1 (Business Case). Targets and estimates — realised benefit to be confirmed</div>
+      <div class="pageno">Section 04 · GR/IR</div>
+    </div>
+
+    <div class="frame" id="frame-6" data-x="-434" data-y="2462" data-w="1600" data-r="3">
+      <div class="bgmotion bg-waves"><span></span><span></span><span></span></div>
+      <div class="panel">
+        <div class="eyebrow">Business Value</div>
+        <h2>Targeting approximately 280 hours saved monthly</h2>
+        <div style="display:flex; gap:64px; margin-top:20px; align-items:baseline;">
+          <div class="stat"><div class="num">280</div><div class="label">hours / month — Wave 1 time-saving target</div></div>
+          <div class="stat"><div class="num" style="font-size:80px;">60–70%</div><div class="label">manual effort removed per reconciliation (AR, AP Trade &amp; GR/IR combined)</div></div>
+        </div>
+        <div style="display:flex; gap:24px; margin-top:52px;">
+          <div class="card" style="flex:1; padding:30px 30px;"><div style="font-size:17px; color:var(--faint);">AR Trade</div><div style="font-size:44px; font-weight:750; margin-top:6px;">133<span style="font-size:18px; color:var(--faint); font-weight:600;"> / year</span></div><div style="font-size:19px; color:var(--dim); margin-top:8px;">0.2 FTE saved</div></div>
+          <div class="card" style="flex:1; padding:30px 30px;"><div style="font-size:17px; color:var(--faint);">AP Trade</div><div style="font-size:44px; font-weight:750; margin-top:6px;">112<span style="font-size:18px; color:var(--faint); font-weight:600;"> / year</span></div><div style="font-size:19px; color:var(--dim); margin-top:8px;">0.2 FTE saved</div></div>
+          <div class="card" style="flex:1; padding:30px 30px; border-color:var(--acc);"><div style="font-size:17px; color:var(--acc);">GR/IR</div><div style="font-size:44px; font-weight:750; margin-top:6px;">141<span style="font-size:18px; color:var(--faint); font-weight:600;"> / year</span></div><div style="font-size:19px; color:var(--dim); margin-top:8px;">1.5 FTE saved</div></div>
+        </div>
+      </div>
+      <div class="source">Sources: Robotics Project Charter (Goals &amp; Benefits); PDD-R2R Reconciliation-AP v1.1 (Business Case). Targets and estimates — realised benefit to be confirmed</div>
+      <div class="pageno">Section 05</div>
+    </div>
+
+    <div class="frame" id="frame-7" data-x="-2165" data-y="1250" data-w="1600" data-r="-3" data-steps="4">
+      <div class="bgmotion bg-scan"></div>
+      <div class="panel">
+        <div class="eyebrow">Compliance &amp; Controls</div>
+        <h2>Controls built in</h2>
+        <div style="position:relative; margin-top:52px; height:470px;">
+          <div data-step="1" class="card" style="position:absolute; left:0px; top:0; width:320px; padding:26px;"><div style="color:var(--acc); font-size:24px;">✓</div><div style="font-size:20px; font-weight:650; margin-top:10px;">Standardised rules &amp; templates</div><div class="body-txt" style="margin-top:8px; font-size:16px;">Predefined business rules and templates applied consistently every close</div></div>
+          <div data-step="2" class="card" style="position:absolute; left:350px; top:65px; width:320px; padding:26px;"><div style="color:var(--acc); font-size:24px;">✓</div><div style="font-size:20px; font-weight:650; margin-top:10px;">Locked evidence</div><div class="body-txt" style="margin-top:8px; font-size:16px;">Source-data and summary sheets are locked; only analysis areas stay editable</div></div>
+          <div data-step="3" class="card" style="position:absolute; left:700px; top:130px; width:320px; padding:26px;"><div style="color:var(--acc); font-size:24px;">✓</div><div style="font-size:20px; font-weight:650; margin-top:10px;">Consistent audit trail</div><div class="body-txt" style="margin-top:8px; font-size:16px;">SAP extracts and screenshots captured with every reconciliation</div></div>
+          <div data-step="4" class="card" style="position:absolute; left:1050px; top:195px; width:320px; padding:26px; border-color:var(--acc);"><div style="color:var(--acc); font-size:24px;">✓</div><div style="font-size:20px; font-weight:650; margin-top:10px;">Less manual intervention</div><div class="body-txt" style="margin-top:8px; font-size:16px;">Fewer hand-offs; Compliance rated High</div></div>
+        </div>
+      </div>
+      <div class="source">Sources: deployment announcement; PDD-R2R Reconciliation-AP v1.1; GR/IR template review</div>
+      <div class="pageno">Section 06</div>
+    </div>
+
+    <div class="frame" id="frame-8" data-x="-2266" data-y="-1057" data-w="1600" data-r="2">
+      <div class="bgmotion bg-shafts"><i></i><i></i><i></i><i></i></div>
+      <div class="panel">
+        <div class="eyebrow">Future Roadmap</div>
+        <h2>Close Wave 1, then scale</h2>
+        <div style="display:flex; gap:60px; margin-top:52px;">
+          <div style="flex:1;">
+            <div style="font-size:18px; letter-spacing:.1em; text-transform:uppercase; color:var(--acc); margin-bottom:22px;">Now · Q4 2026</div>
+            <div style="display:flex; gap:16px; margin-bottom:20px;"><div style="color:var(--acc); font-weight:700;">1</div><div class="body-txt" style="font-size:22px; color:var(--fg);">GR/IR as the next delivery: UAT, go-live and hypercare</div></div>
+            <div style="display:flex; gap:16px; margin-bottom:20px;"><div style="color:var(--acc); font-weight:700;">2</div><div class="body-txt" style="font-size:22px; color:var(--fg);">AP &amp; AR hypercare through first close cycles</div></div>
+            <div style="display:flex; gap:16px;"><div style="color:var(--acc); font-weight:700;">3</div><div class="body-txt" style="font-size:22px; color:var(--fg);">Measure realised hours against the 280 hrs/month target</div></div>
+          </div>
+          <div style="width:1px; background:var(--edge);"></div>
+          <div style="flex:1;">
+            <div style="font-size:18px; letter-spacing:.1em; text-transform:uppercase; color:var(--dim); margin-bottom:22px;">Next · Waves 2, 3+</div>
+            <div style="display:flex; gap:16px; margin-bottom:20px;"><div style="color:var(--faint); font-weight:700;">1</div><div class="body-txt" style="font-size:22px;">Confirm and extend to further account types</div></div>
+            <div style="display:flex; gap:16px; margin-bottom:20px;"><div style="color:var(--faint); font-weight:700;">2</div><div class="body-txt" style="font-size:22px;">Assess automating today's manual steps, e.g. BlackLine upload</div></div>
+            <div style="display:flex; gap:16px;"><div style="color:var(--faint); font-weight:700;">3</div><div class="body-txt" style="font-size:22px;">Reuse shared AP / AR / GR-IR components</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="source">Sources: Blackline Reconciliations Programme notes; Robotics Project Charter. Wave 2 and Wave 3+ scope is proposed and not yet confirmed</div>
+      <div class="pageno">Section 07</div>
+    </div>
+
+  </div>
+</div>
+
+<div class="chrome" id="brand">
+  <div class="mark">IFF</div>
+  <div class="tag">R2R Automation</div>
+</div>
+<div class="chrome" id="themeToggle"><span class="dot"></span><span id="themeLabel">Dark mode</span></div>
+
+<div id="map">
+  <svg viewBox="0 0 1000 1000" preserveAspectRatio="none"></svg>
+  <div id="mapHero">
+    <h3>R2R Reconciliations Automation</h3>
+    <p>Session map — click a section or press its number</p>
+  </div>
+</div>
+
+<div id="blank"><div class="grid"></div><div class="mark">IFF · R2R AUTOMATION</div></div>
+
+<script>
+(function(){
+  var canvas = document.getElementById('canvas');
+  var stage = document.getElementById('stage');
+  var frames = Array.prototype.slice.call(document.querySelectorAll('.frame'));
+  var ARMS = [[1],[2],[3],[4,5],[6],[7],[8]];
+  var ORDER = [0].concat.apply([0], ARMS).filter(function(v,i,a){return a.indexOf(v)===i;});
+  // build ORDER properly: cover then each arm's frames in order
+  ORDER = [0];
+  ARMS.forEach(function(arm){ arm.forEach(function(f){ ORDER.push(f); }); });
+  var SECTION_START = {1:1,2:2,3:3,4:4,5:6,6:7,7:8};
+  var SECTION_NAMES = {1:'Executive Summary',2:'Strategic Objectives',3:'How It Works',4:'GR/IR Spotlight',5:'Business Value',6:'Compliance & Controls',7:'Roadmap'};
+
+  var pos = 0;
+  var cam = {x:0,y:0,s:1,r:0};
+  var flying = false;
+  var mapOpen = false;
+  var blankOpen = false;
+
+  function rectOf(el){
+    var w = +el.dataset.w;
+    return {x:+el.dataset.x, y:+el.dataset.y, w:w, h:w*9/16, r:+(el.dataset.r||0)};
+  }
+  function fitScale(w,h){
+    return Math.min(window.innerWidth/w, window.innerHeight/h) * 0.94;
+  }
+  function applyCam(){
+    canvas.style.transform = 'translate('+ (window.innerWidth/2) +'px,' + (window.innerHeight/2) + 'px) rotate(' + (-cam.r) + 'deg) scale(' + cam.s + ') translate(' + (-cam.x) + 'px,' + (-cam.y) + 'px)';
+  }
+  function easeInOutCubic(t){ return t<.5 ? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2; }
+  function easeOutCubic(t){ return 1-Math.pow(1-t,3); }
+
+  function layoutFrames(){
+    frames.forEach(function(el){
+      var r = rectOf(el);
+      el.style.width = r.w+'px';
+      el.style.height = r.h+'px';
+      el.style.transform = 'translate(' + (r.x - r.w/2) + 'px,' + (r.y - r.h/2) + 'px) rotate(' + r.r + 'deg)';
+    });
+  }
+
+  function resetSteps(el, showAll){
+    var total = +(el.dataset.steps||0);
+    var cur = showAll ? total : 0;
+    el.dataset.curStep = cur;
+    el.querySelectorAll('[data-step]').forEach(function(node){
+      var n = +node.dataset.step;
+      node.classList.toggle('on', n<=cur);
+    });
+  }
+
+  function goTo(idx, instant, dir){
+    var target = frames[idx];
+    var rect = rectOf(target);
+    var tScale = fitScale(rect.w, rect.h);
+
+    frames.forEach(function(f){ f.classList.remove('is-live'); });
+
+    if(instant){
+      cam = {x:rect.x, y:rect.y, s:tScale, r:rect.r};
+      applyCam();
+      target.classList.add('is-live');
+      resetSteps(target, dir==='back'||dir==='jump');
+      return;
+    }
+
+    var s0 = {x:cam.x, y:cam.y, s:cam.s, r:cam.r};
+    var dist = Math.hypot(rect.x-s0.x, rect.y-s0.y);
+    var pull = 1/(1+dist/1900);
+    var mid = Math.min(s0.s, tScale) * Math.max(pull, .13);
+    var D = Math.max(1750, Math.min(3900, 1200+dist*.045));
+
+    document.body.classList.add('is-flying');
+    flying = true;
+    var t0 = null;
+
+    function step(now){
+      if(t0===null) t0 = now;
+      var u = Math.min(1, (now-t0)/D);
+      var eu = easeInOutCubic(u);
+      cam.x = s0.x + (rect.x-s0.x)*eu;
+      cam.y = s0.y + (rect.y-s0.y)*eu;
+      cam.r = s0.r + (rect.r-s0.r)*eu;
+      var l0=Math.log(s0.s), l1=Math.log(mid||s0.s), l2=Math.log(tScale);
+      var b = (1-eu)*(1-eu)*l0 + 2*(1-eu)*eu*l1 + eu*eu*l2;
+      cam.s = Math.exp(b);
+      applyCam();
+      if(u<1){ requestAnimationFrame(step); }
+      else { settle(target, rect, tScale, dir); }
+    }
+    requestAnimationFrame(step);
+  }
+
+  function settle(target, rect, tScale, dir){
+    var startS = tScale*1.011;
+    var t0 = null;
+    var D = 320;
+    function step(now){
+      if(t0===null) t0 = now;
+      var u = Math.min(1, (now-t0)/D);
+      var eu = easeOutCubic(u);
+      cam.x = rect.x; cam.y = rect.y; cam.r = rect.r;
+      cam.s = startS + (tScale-startS)*eu;
+      applyCam();
+      if(u<1){ requestAnimationFrame(step); }
+      else {
+        cam.s = tScale; applyCam();
+        document.body.classList.remove('is-flying');
+        flying = false;
+        target.classList.add('is-live');
+        resetSteps(target, dir==='back'||dir==='jump');
+      }
+    }
+    requestAnimationFrame(step);
+  }
+
+  function advance(){
+    if(blankOpen) return;
+    if(mapOpen){ closeMap(); return; }
+    if(flying) return;
+    var live = frames[ORDER[pos]];
+    var total = +(live.dataset.steps||0);
+    var cur = +(live.dataset.curStep||0);
+    if(cur < total){
+      live.dataset.curStep = cur+1;
+      live.querySelectorAll('[data-step="'+(cur+1)+'"]').forEach(function(n){ n.classList.add('on'); });
+      return;
+    }
+    if(pos < ORDER.length-1){ pos++; goTo(ORDER[pos], false, 'fwd'); }
+  }
+  function retreat(){
+    if(blankOpen) return;
+    if(mapOpen){ closeMap(); return; }
+    if(flying) return;
+    var live = frames[ORDER[pos]];
+    var cur = +(live.dataset.curStep||0);
+    if(cur > 0){
+      live.querySelectorAll('[data-step="'+cur+'"]').forEach(function(n){ n.classList.remove('on'); });
+      live.dataset.curStep = cur-1;
+      return;
+    }
+    if(pos > 0){ pos--; goTo(ORDER[pos], false, 'back'); }
+  }
+  function jumpToFrame(idx){
+    if(flying) return;
+    var p = ORDER.indexOf(idx);
+    if(p<0) return;
+    pos = p;
+    goTo(idx, false, 'jump');
+  }
+
+  function openMap(){
+    mapOpen = true;
+    document.getElementById('map').classList.add('open');
+  }
+  function closeMap(){
+    mapOpen = false;
+    document.getElementById('map').classList.remove('open');
+  }
+  function toggleMap(){ mapOpen ? closeMap() : openMap(); }
+
+  function toggleBlank(){
+    blankOpen = !blankOpen;
+    document.getElementById('blank').classList.toggle('open', blankOpen);
+  }
+
+  function toggleFullscreen(){
+    try{
+      if(!document.fullscreenElement){ document.documentElement.requestFullscreen && document.documentElement.requestFullscreen(); }
+      else { document.exitFullscreen && document.exitFullscreen(); }
+    }catch(e){}
+  }
+
+  function setTheme(mode){
+    document.documentElement.setAttribute('data-theme', mode);
+    document.getElementById('themeLabel').textContent = mode==='dark' ? 'Dark mode' : 'Light mode';
+    try{ localStorage.setItem('iff-deck-theme', mode); }catch(e){}
+  }
+  function toggleTheme(){
+    var cur = document.documentElement.getAttribute('data-theme') || 'dark';
+    setTheme(cur==='dark' ? 'light' : 'dark');
+  }
+
+  document.addEventListener('keydown', function(e){
+    var k = e.key;
+    if(blankOpen){
+      if(k==='b'||k==='B'||k==='Escape'){ toggleBlank(); }
+      return;
+    }
+    if(k==='PageDown'||k==='ArrowRight'||k==='ArrowDown'||k===' '||k==='Enter'){ e.preventDefault(); advance(); }
+    else if(k==='PageUp'||k==='ArrowLeft'||k==='ArrowUp'||k==='Backspace'){ e.preventDefault(); retreat(); }
+    else if(k==='o'||k==='O'){ toggleMap(); }
+    else if(k==='Escape'){ if(mapOpen) closeMap(); }
+    else if(k==='b'||k==='B'){ toggleBlank(); }
+    else if(k==='f'||k==='F'){ toggleFullscreen(); }
+    else if(k==='t'||k==='T'){ toggleTheme(); }
+    else if(/^[1-9]$/.test(k)){
+      var n = +k;
+      if(SECTION_START[n]){
+        if(mapOpen) closeMap();
+        jumpToFrame(SECTION_START[n]);
+      }
+    }
+  });
+
+  stage.addEventListener('click', function(){ advance(); });
+  stage.addEventListener('contextmenu', function(e){ e.preventDefault(); retreat(); });
+
+  document.getElementById('themeToggle').addEventListener('click', function(e){
+    e.stopPropagation(); toggleTheme();
+  });
+
+  window.addEventListener('resize', function(){
+    layoutFrames();
+    if(!flying){
+      var live = frames[ORDER[pos]];
+      var rect = rectOf(live);
+      cam.x = rect.x; cam.y = rect.y; cam.r = rect.r; cam.s = fitScale(rect.w, rect.h);
+      applyCam();
+    }
+  });
+
+  var mapEl = document.getElementById('map');
+  var tilePositions = {
+    1:{left:43.75, top:18.5}, 2:{left:70.6, top:23.8}, 3:{left:85.9, top:47.2},
+    4:{left:75.5, top:72.6}, 5:{left:43.75, top:81.5}, 6:{left:18.8, top:66},
+    7:{left:17.4, top:36.5}
+  };
+  var svg = mapEl.querySelector('svg');
+  Object.keys(tilePositions).forEach(function(k){
+    var p = tilePositions[k];
+    var line = document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1','500'); line.setAttribute('y1','500');
+    line.setAttribute('x2', p.left*10); line.setAttribute('y2', p.top*10);
+    svg.appendChild(line);
+
+    var tile = document.createElement('div');
+    tile.className = 'card tile';
+    tile.style.left = p.left + '%';
+    tile.style.top = p.top + '%';
+    tile.style.animationDelay = (k*0.6) + 's';
+    tile.dataset.depth = (0.6 + (k%3)*0.15).toFixed(2);
+    tile.innerHTML = '<div class="n">0'+k+'</div><div class="t">'+SECTION_NAMES[k]+'</div>';
+    tile.addEventListener('click', function(e){
+      e.stopPropagation();
+      closeMap();
+      jumpToFrame(SECTION_START[k]);
+    });
+    mapEl.appendChild(tile);
+  });
+
+  mapEl.addEventListener('mousemove', function(e){
+    if(!mapOpen) return;
+    var cx = window.innerWidth/2, cy = window.innerHeight/2;
+    var dx = (e.clientX-cx)/cx, dy = (e.clientY-cy)/cy;
+    document.querySelectorAll('.tile').forEach(function(t){
+      var depth = +t.dataset.depth;
+      t.style.marginLeft = (dx*20*depth) + 'px';
+      t.style.marginTop = (dy*20*depth) + 'px';
+    });
+  });
+
+  var savedTheme = 'dark';
+  try{ savedTheme = localStorage.getItem('iff-deck-theme') || 'dark'; }catch(e){}
+  setTheme(savedTheme);
+
+  layoutFrames();
+  goTo(0, true, 'jump');
+})();
+</script>
+</body>
+</html>
